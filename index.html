@@ -1,0 +1,1136 @@
+# shooter3d-1
+<!DOCTYPE html>  <html lang="ar">  
+<head>  
+<meta charset="UTF-8">  
+<title>Shooter 3D - Ibrahim Amer</title>  
+<style>  
+  * { margin: 0; padding: 0; box-sizing: border-box; }  
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }  
+  #gameCanvas { display: block; }  
+  #ui {  
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;  
+    pointer-events: none; user-select: none;  
+  }  
+  #crosshair {  
+    position: absolute; top: 50%; left: 50%;  
+    transform: translate(-50%, -50%);  
+    width: 20px; height: 20px;  
+  }  
+  #crosshair::before, #crosshair::after {  
+    content: ''; position: absolute; background: rgba(255,255,255,0.85);  
+  }  
+  #crosshair::before { width: 2px; height: 20px; left: 9px; top: 0; }  
+  #crosshair::after  { width: 20px; height: 2px; left: 0; top: 9px; }  
+  #hud {  
+    position: absolute; bottom: 24px; left: 0; right: 0;  
+    display: flex; justify-content: space-between; align-items: flex-end;  
+    padding: 0 32px;  
+  }  
+  .hud-box {  
+    background: rgba(0,0,0,0.55);  
+    border: 1px solid rgba(255,255,255,0.18);  
+    border-radius: 8px; padding: 10px 20px; color: #fff;  
+  }  
+  #health-bar-wrap { width: 200px; }  
+  #health-label { font-size: 11px; color: #aaa; margin-bottom: 4px; letter-spacing: 1px; }  
+  #health-bar-bg { background: rgba(255,255,255,0.1); border-radius: 4px; height: 10px; overflow: hidden; }  
+  #health-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #e63946, #ff6b6b); border-radius: 4px; transition: width 0.3s; }  
+  #ammo-box { text-align: right; }  
+  #ammo-num { font-size: 32px; font-weight: bold; color: #fff; line-height: 1; }  
+  #ammo-label { font-size: 11px; color: #aaa; letter-spacing: 1px; }  
+  #score-box { text-align: center; }  
+  #score-num { font-size: 28px; font-weight: bold; color: #ffd60a; }  
+  #score-label { font-size: 11px; color: #aaa; letter-spacing: 1px; }  
+  #copyright {  
+    position: absolute; bottom: 8px; left: 50%;  
+    transform: translateX(-50%);  
+    font-size: 11px; color: rgba(255,255,255,0.35);  
+    letter-spacing: 1px; white-space: nowrap;  
+  }  
+  #overlay {  
+    position: absolute; inset: 0;  
+    background: rgba(0,0,0,0.82);  
+    display: flex; flex-direction: column; align-items: center; justify-content: center;  
+    gap: 16px; pointer-events: all;  
+  }  
+  #overlay h1 { color: #fff; font-size: 42px; letter-spacing: 4px; text-transform: uppercase; }  
+  #overlay p { color: #aaa; font-size: 15px; }  
+  #overlay button {  
+    margin-top: 10px; padding: 14px 48px;  
+    background: #e63946; color: #fff; border: none;  
+    font-size: 18px; font-family: inherit; border-radius: 8px;  
+    cursor: pointer; letter-spacing: 2px; text-transform: uppercase;  
+    transition: background 0.2s;  
+  }  
+  #overlay button:hover { background: #c1121f; }  
+  #overlay.hidden { display: none; }  
+  #kill-flash {  
+    position: absolute; inset: 0;  
+    background: rgba(255, 0, 0, 0.18);  
+    pointer-events: none; opacity: 0;  
+    transition: opacity 0.15s;  
+  }  
+  #hit-marker {  
+    position: absolute; top: 50%; left: 50%;  
+    transform: translate(-50%, -50%);  
+    opacity: 0; transition: opacity 0.1s;  
+    pointer-events: none;  
+  }  
+  #hit-marker span {  
+    position: absolute; background: #e63946;  
+    border-radius: 2px;  
+  }  
+  .hm-tl { width: 2px; height: 8px; left: -10px; top: -10px; transform: rotate(45deg); }  
+  .hm-tr { width: 2px; height: 8px; left: 8px; top: -10px; transform: rotate(-45deg); }  
+  .hm-bl { width: 2px; height: 8px; left: -10px; top: 2px; transform: rotate(-45deg); }  
+  .hm-br { width: 2px; height: 8px; left: 8px; top: 2px; transform: rotate(45deg); }  
+  #wave-announce {  
+    position: absolute; top: 80px; left: 50%;  
+    transform: translateX(-50%);  
+    font-size: 22px; color: #ffd60a; letter-spacing: 3px;  
+    text-shadow: 0 0 20px #ffd60a88;  
+    opacity: 0; transition: opacity 0.5s;  
+    pointer-events: none;  
+  }  
+  #minimap {  
+    position: absolute; top: 20px; right: 24px;  
+    width: 120px; height: 120px;  
+    background: rgba(0,0,0,0.55);  
+    border: 1px solid rgba(255,255,255,0.18);  
+    border-radius: 8px; overflow: hidden;  
+  }  
+  #minimap canvas { width: 100%; height: 100%; }  
+  #controls-hint {  
+    position: absolute; top: 20px; left: 24px;  
+    color: rgba(255,255,255,0.35);  
+    font-size: 11px; line-height: 1.8; letter-spacing: 0.5px;  
+  }  
+</style>  
+</head>  
+<body>  
+<canvas id="gameCanvas"></canvas>  
+<div id="ui">  
+  <div id="crosshair"></div>  
+  <div id="hit-marker">  
+    <span class="hm-tl"></span><span class="hm-tr"></span>  
+    <span class="hm-bl"></span><span class="hm-br"></span>  
+  </div>  
+  <div id="kill-flash"></div>  
+  <div id="wave-announce"></div>  
+  <div id="minimap"><canvas id="mmCanvas" width="120" height="120"></canvas></div>  
+  <div id="controls-hint">  
+    WASD — تحرك<br>  
+    Mouse — نظر<br>  
+    Click — طلق<br>  
+    R — إعادة تحميل<br>  
+    Shift — ركض  
+  </div>  
+  <div id="hud">  
+    <div class="hud-box" id="health-bar-wrap">  
+      <div id="health-label">HP</div>  
+      <div id="health-bar-bg"><div id="health-bar"></div></div>  
+    </div>  
+    <div class="hud-box" id="score-box">  
+      <div id="score-num">0</div>  
+      <div id="score-label">SCORE</div>  
+    </div>  
+    <div class="hud-box" id="ammo-box">  
+      <div id="ammo-num">30</div>  
+      <div id="ammo-label">AMMO</div>  
+    </div>  
+  </div>  
+  <div id="copyright">© Ibrahim Amer — Shooter 3D</div>  
+  <div id="overlay">  
+    <h1>Shooter 3D</h1>  
+    <p>اضغط على اللعب لتقفل الماوس وتبدأ</p>  
+    <p style="color:#666;font-size:12px;">WASD للتحرك | Mouse للنظر | Click للإطلاق | R للتحميل | Shift للركض</p>  
+    <button id="startBtn">▶ العب</button>  
+    <p id="gameOverMsg" style="color:#e63946;font-size:18px;display:none;"></p>  
+  </div>  
+</div>  <script>  
+const canvas = document.getElementById('gameCanvas');  
+const ctx = canvas.getContext('2d');  
+const mmCanvas = document.getElementById('mmCanvas');  
+const mmCtx = mmCanvas.getContext('2d');  
+  
+let W, H;  
+function resize() {  
+  W = canvas.width = window.innerWidth;  
+  H = canvas.height = window.innerHeight;  
+}  
+resize();  
+window.addEventListener('resize', resize);  
+  
+// ---- GAME STATE ----  
+const MAP_W = 24, MAP_H = 24;  
+const map = [  
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1],  
+  [1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],  
+];  
+  
+const player = {  
+  x: 3.5, y: 3.5, angle: 0,  
+  health: 100, ammo: 30, maxAmmo: 30,  
+  score: 0, speed: 0.055, sprint: false,  
+  reloading: false, reloadTimer: 0,  
+};  
+  
+const ENEMY_COLORS = ['#e63946','#f4a261','#e9c46a','#2a9d8f','#e76f51'];  
+let enemies = [];  
+let bullets = [];  
+let particles = [];  
+let wave = 0;  
+let gameRunning = false;  
+let gameOver = false;  
+let hitMarkerTimer = 0;  
+let killFlashTimer = 0;  
+let waveAnnounceTimer = 0;  
+  
+function spawnWave() {  
+  wave++;  
+  const count = 3 + wave * 2;  
+  enemies = [];  
+  for (let i = 0; i < count; i++) {  
+    let ex, ey;  
+    do {  
+      ex = 1 + Math.random() * (MAP_W - 2);  
+      ey = 1 + Math.random() * (MAP_H - 2);  
+    } while (map[Math.floor(ey)][Math.floor(ex)] !== 0 ||  
+      Math.hypot(ex - player.x, ey - player.y) < 5);  
+    enemies.push({  
+      x: ex, y: ey,  
+      health: 2 + wave,  
+      maxHealth: 2 + wave,  
+      speed: 0.015 + wave * 0.003,  
+      color: ENEMY_COLORS[i % ENEMY_COLORS.length],  
+      angle: 0, attackTimer: 0, visible: false,  
+      size: 0.3,  
+    });  
+  }  
+  showWaveAnnounce('موجة ' + wave);  
+}  
+  
+function showWaveAnnounce(txt) {  
+  const el = document.getElementById('wave-announce');  
+  el.textContent = txt;  
+  el.style.opacity = '1';  
+  waveAnnounceTimer = 180;  
+}  
+  
+// ---- INPUT ----  
+const keys = {};  
+let mouseDX = 0;  
+document.addEventListener('keydown', e => { keys[e.code] = true; });  
+document.addEventListener('keyup', e => { keys[e.code] = false; });  
+document.addEventListener('mousemove', e => {  
+  if (document.pointerLockElement === canvas) {  
+    mouseDX += e.movementX * 0.0018;  
+  }  
+});  
+document.addEventListener('mousedown', e => {  
+  if (document.pointerLockElement === canvas && gameRunning && !gameOver) {  
+    shoot();  
+  }  
+});  
+document.addEventListener('keydown', e => {  
+  if (e.code === 'KeyR' && gameRunning && !player.reloading && player.ammo < player.maxAmmo) {  
+    startReload();  
+  }  
+});  
+  
+canvas.addEventListener('click', () => {  
+  if (!gameRunning || gameOver) return;  
+  canvas.requestPointerLock();  
+});  
+  
+document.getElementById('startBtn').addEventListener('click', () => {  
+  startGame();  
+  canvas.requestPointerLock();  
+});  
+  
+document.addEventListener('pointerlockchange', () => {  
+  if (document.pointerLockElement !== canvas && gameRunning && !gameOver) {  
+    // paused  
+  }  
+});  
+  
+function startGame() {  
+  player.x = 3.5; player.y = 3.5; player.angle = 0;  
+  player.health = 100; player.ammo = 30; player.score = 0;  
+  player.reloading = false; player.reloadTimer = 0;  
+  bullets = []; particles = []; enemies = [];  
+  wave = 0; gameOver = false; gameRunning = true;  
+  document.getElementById('overlay').classList.add('hidden');  
+  document.getElementById('gameOverMsg').style.display = 'none';  
+  spawnWave();  
+}  
+  
+function shoot() {  
+  if (player.ammo <= 0 || player.reloading) {  
+    if (player.ammo <= 0) startReload();  
+    return;  
+  }  
+  player.ammo--;  
+  updateHUD();  
+  // Muzzle flash particles  
+  for (let i = 0; i < 6; i++) {  
+    particles.push({  
+      x: player.x, y: player.y,  
+      vx: (Math.random() - 0.5) * 0.3,  
+      vy: (Math.random() - 0.5) * 0.3,  
+      life: 8, maxLife: 8, color: '#ffd60a',  
+    });  
+  }  
+  // Raycast to hit enemy  
+  const bAngle = player.angle;  
+  let hit = raycastEnemy(player.x, player.y, bAngle);  
+  if (hit) {  
+    hit.enemy.health -= 1;  
+    hitMarkerTimer = 12;  
+    if (hit.enemy.health <= 0) {  
+      killFlashTimer = 6;  
+      player.score += 100 * wave;  
+      // Spawn death particles  
+      for (let i = 0; i < 14; i++) {  
+        particles.push({  
+          x: hit.enemy.x, y: hit.enemy.y,  
+          vx: (Math.random()-0.5)*0.18,  
+          vy: (Math.random()-0.5)*0.18,  
+          life: 30, maxLife: 30, color: hit.enemy.color,  
+        });  
+      }  
+      enemies = enemies.filter(e => e !== hit.enemy);  
+      if (enemies.length === 0) setTimeout(spawnWave, 1200);  
+    }  
+    updateHUD();  
+  }  
+}  
+  
+function startReload() {  
+  player.reloading = true;  
+  player.reloadTimer = 90;  
+}  
+  
+function raycastEnemy(ox, oy, angle) {  
+  const dx = Math.cos(angle), dy = Math.sin(angle);  
+  let best = null, bestDist = 20;  
+  for (const e of enemies) {  
+    // Check if enemy is roughly in direction  
+    const ex = e.x - ox, ey = e.y - oy;  
+    const dot = ex*dx + ey*dy;  
+    if (dot < 0.3) continue;  
+    const cross = Math.abs(ex*dy - ey*dx);  
+    if (cross < e.size + 0.18 && dot < bestDist) {  
+      // Wall check  
+      if (!wallBetween(ox, oy, e.x, e.y)) {  
+        best = e; bestDist = dot;  
+      }  
+    }  
+  }  
+  return best ? { enemy: best, dist: bestDist } : null;  
+}  
+  
+function wallBetween(ax, ay, bx, by) {  
+  const steps = Math.ceil(Math.hypot(bx-ax, by-ay) / 0.1);  
+  for (let i = 1; i < steps; i++) {  
+    const t = i / steps;  
+    const mx = ax + (bx-ax)*t, my = ay + (by-ay)*t;  
+    if (map[Math.floor(my)][Math.floor(mx)] !== 0) return true;  
+  }  
+  return false;  
+}  
+  
+// ---- RAYCASTER ----  
+function castRay(angle) {  
+  const dx = Math.cos(angle), dy = Math.sin(angle);  
+  let mapX = Math.floor(player.x), mapY = Math.floor(player.y);  
+  const stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1;  
+  const deltaX = Math.abs(1/dx), deltaY = Math.abs(1/dy);  
+  let sideDistX = dx > 0 ? (mapX+1-player.x)*deltaX : (player.x-mapX)*deltaX;  
+  let sideDistY = dy > 0 ? (mapY+1-player.y)*deltaY : (player.y-mapY)*deltaY;  
+  let side = 0;  
+  for (let i = 0; i < 64; i++) {  
+    if (sideDistX < sideDistY) { sideDistX += deltaX; mapX += stepX; side = 0; }  
+    else { sideDistY += deltaY; mapY += stepY; side = 1; }  
+    if (mapX < 0||mapX>=MAP_W||mapY<0||mapY>=MAP_H||map[mapY][mapX] !== 0) break;  
+  }  
+  let dist = side === 0 ? (mapX - player.x + (1-stepX)/2) / dx : (mapY - player.y + (1-stepY)/2) / dy;  
+  return { dist: Math.max(dist, 0.01), side };  
+}  
+  
+// ---- RENDER ----  
+function render() {  
+  // Sky & floor  
+  const skyGrad = ctx.createLinearGradient(0,0,0,H/2);  
+  skyGrad.addColorStop(0,'#0d1b2a'); skyGrad.addColorStop(1,'#1b2838');  
+  ctx.fillStyle = skyGrad; ctx.fillRect(0,0,W,H/2);  
+  const floorGrad = ctx.createLinearGradient(0,H/2,0,H);  
+  floorGrad.addColorStop(0,'#1a1a1a'); floorGrad.addColorStop(1,'#0a0a0a');  
+  ctx.fillStyle = floorGrad; ctx.fillRect(0,H/2,W,H/2);  
+  
+  const numRays = W;  
+  const FOV = Math.PI/3;  
+  const zBuffer = new Float32Array(numRays);  
+  
+  for (let x = 0; x < numRays; x++) {  
+    const rayAngle = player.angle - FOV/2 + (x/numRays)*FOV;  
+    const { dist, side } = castRay(rayAngle);  
+    const corrDist = dist * Math.cos(rayAngle - player.angle);  
+    const wallH = Math.min(H, H / corrDist);  
+    zBuffer[x] = corrDist;  
+    const top = (H - wallH) / 2;  
+    let bright = Math.max(0, 1 - corrDist/16);  
+    if (side === 1) bright *= 0.65;  
+    const r = Math.floor(80 * bright), g = Math.floor(110 * bright), b = Math.floor(160 * bright);  
+    ctx.fillStyle = `rgb(${r},${g},${b})`;  
+    ctx.fillRect(x, top, 1, wallH);  
+  }  
+  
+  // Draw enemies (sprites)  
+  const sorted = [...enemies].sort((a,b) =>  
+    Math.hypot(b.x-player.x,b.y-player.y) - Math.hypot(a.x-player.x,a.y-player.y));  
+  
+  for (const e of sorted) {  
+    const dx = e.x - player.x, dy = e.y - player.y;  
+    const dist = Math.hypot(dx, dy);  
+    const spriteAngle = Math.atan2(dy, dx) - player.angle;  
+    let sa = spriteAngle;  
+    while (sa > Math.PI) sa -= Math.PI*2;  
+    while (sa < -Math.PI) sa += Math.PI*2;  
+    if (Math.abs(sa) > FOV*0.75) continue;  
+    const screenX = (0.5 + sa/FOV) * W;  
+    const spriteH = Math.min(H*1.2, H / dist);  
+    const spriteW = spriteH * 0.6;  
+    const drawY = (H - spriteH) / 2;  
+    const startX = Math.floor(screenX - spriteW/2);  
+    const endX = Math.floor(screenX + spriteW/2);  
+    // Check z-buffer per column  
+    for (let sx = Math.max(0, startX); sx < Math.min(W, endX); sx++) {  
+      if (dist >= zBuffer[sx]) continue;  
+      const tx = (sx - startX) / spriteW;  
+      // Body  
+      const bodyTop = drawY + spriteH*0.1;  
+      const bodyH = spriteH*0.6;  
+      const alpha = Math.max(0.3, 1 - dist/14);  
+      ctx.globalAlpha = alpha;  
+      // Legs  
+      ctx.fillStyle = '#2b2d42';  
+      ctx.fillRect(sx, bodyTop + bodyH, 1, spriteH*0.3);  
+      // Body  
+      ctx.fillStyle = e.color;  
+      ctx.fillRect(sx, bodyTop, 1, bodyH);  
+      // Head  
+      const headR = spriteH*0.14;  
+      if (sx === Math.floor(screenX)) {  
+        ctx.beginPath();  
+        ctx.arc(sx, drawY + spriteH*0.07, headR, 0, Math.PI*2);  
+        ctx.fill();  
+      }  
+      // Health bar  
+      if (sx >= startX && sx < startX+spriteW) {  
+        const hpFrac = e.health/e.maxHealth;  
+        const barW = spriteW;  
+        const bx = startX;  
+        if (sx === startX) {  
+          ctx.globalAlpha = 0.7;  
+          ctx.fillStyle = '#333'; ctx.fillRect(bx, drawY-10, barW, 5);  
+          ctx.fillStyle = hpFrac > 0.5 ? '#2dc653' : '#e63946';  
+          ctx.fillRect(bx, drawY-10, barW*hpFrac, 5);  
+        }  
+      }  
+      ctx.globalAlpha = 1;  
+    }  
+  }  
+  
+  // Draw particles (world-space, simplified as dots)  
+  for (const p of particles) {  
+    const dx = p.x - player.x, dy = p.y - player.y;  
+    const dist = Math.hypot(dx, dy);  
+    const sa = Math.atan2(dy, dx) - player.angle;  
+    let sa2 = sa;  
+    while (sa2 > Math.PI) sa2 -= Math.PI*2;  
+    while (sa2 < -Math.PI) sa2 += Math.PI*2;  
+    if (Math.abs(sa2) > FOV) continue;  
+    const screenX = (0.5 + sa2/FOV) * W;  
+    const screenY = H/2 + (Math.random()-0.5)*10;  
+    const sz = Math.max(1, 6/dist);  
+    const alpha = p.life/p.maxLife;  
+    ctx.globalAlpha = alpha;  
+    ctx.fillStyle = p.color;  
+    ctx.fillRect(screenX-sz/2, screenY-sz/2, sz, sz);  
+  }  
+  ctx.globalAlpha = 1;  
+  
+  // Weapon (gun model at bottom)  
+  drawGun();  
+  drawMinimap();  
+}  
+  
+function drawGun() {  
+  const cx = W/2, cy = H;  
+  const sw = W*0.22, sh = H*0.32;  
+  const ox = cx + 80, oy = cy - 10;  
+  const bob = Math.sin(Date.now()*0.008) * (player.sprint ? 6 : 2);  
+  
+  if (player.reloading) {  
+    const prog = 1 - player.reloadTimer/90;  
+    ctx.save();  
+    ctx.translate(0, prog * 60);  
+  }  
+  
+  // Gun body  
+  ctx.fillStyle = '#222';  
+  ctx.beginPath();  
+  ctx.roundRect(ox - sw*0.4, oy - sh*0.7 + bob, sw, sh*0.55, 8);  
+  ctx.fill();  
+  // Barrel  
+  ctx.fillStyle = '#1a1a1a';  
+  ctx.fillRect(ox - sw*0.05, oy - sh*1.0 + bob, sw*0.12, sh*0.35);  
+  // Grip  
+  ctx.fillStyle = '#2d2d2d';  
+  ctx.beginPath();  
+  ctx.roundRect(ox - sw*0.08, oy - sh*0.15 + bob, sw*0.2, sh*0.25, 4);  
+  ctx.fill();  
+  // Sight  
+  ctx.fillStyle = '#e63946';  
+  ctx.fillRect(ox - sw*0.015, oy - sh*1.05 + bob, sw*0.04, 6);  
+  
+  if (player.reloading) ctx.restore();  
+  
+  // Muzzle flash  
+  if (hitMarkerTimer > 10) {  
+    ctx.save();  
+    ctx.globalAlpha = 0.9;  
+    ctx.fillStyle = '#ffd60a';  
+    ctx.beginPath();  
+    ctx.arc(ox + sw*0.01, oy - sh*1.0 + bob, 14, 0, Math.PI*2);  
+    ctx.fill();  
+    ctx.globalAlpha = 0.5;  
+    ctx.fillStyle = '#fff';  
+    ctx.beginPath();  
+    ctx.arc(ox + sw*0.01, oy - sh*1.0 + bob, 6, 0, Math.PI*2);  
+    ctx.fill();  
+    ctx.restore();  
+  }  
+  
+  // Reload progress bar  
+  if (player.reloading) {  
+    const prog = 1 - player.reloadTimer/90;  
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';  
+    ctx.fillRect(cx-80, cy-40, 160, 8);  
+    ctx.fillStyle = '#ffd60a';  
+    ctx.fillRect(cx-80, cy-40, 160*prog, 8);  
+    ctx.fillStyle = '#fff';  
+    ctx.font = '12px Courier New';  
+    ctx.textAlign = 'center';  
+    ctx.fillText('RELOADING...', cx, cy-46);  
+  }  
+}  
+  
+function drawMinimap() {  
+  const SCALE = 5;  
+  mmCtx.clearRect(0,0,120,120);  
+  mmCtx.fillStyle = '#111';  
+  mmCtx.fillRect(0,0,120,120);  
+  for (let y = 0; y < MAP_H; y++) {  
+    for (let x = 0; x < MAP_W; x++) {  
+      if (map[y][x]) {  
+        mmCtx.fillStyle = '#334';  
+        mmCtx.fillRect(x*SCALE, y*SCALE, SCALE, SCALE);  
+      }  
+    }  
+  }  
+  // Enemies  
+  for (const e of enemies) {  
+    mmCtx.fillStyle = e.color;  
+    mmCtx.beginPath();  
+    mmCtx.arc(e.x*SCALE, e.y*<!DOCTYPE html>  <html lang="ar">  
+<head>  
+<meta charset="UTF-8">  
+<title>Shooter 3D - Ibrahim Amer</title>  
+<style>  
+  * { margin: 0; padding: 0; box-sizing: border-box; }  
+  body { background: #000; overflow: hidden; font-family: 'Courier New', monospace; }  
+  #gameCanvas { display: block; }  
+  #ui {  
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;  
+    pointer-events: none; user-select: none;  
+  }  
+  #crosshair {  
+    position: absolute; top: 50%; left: 50%;  
+    transform: translate(-50%, -50%);  
+    width: 20px; height: 20px;  
+  }  
+  #crosshair::before, #crosshair::after {  
+    content: ''; position: absolute; background: rgba(255,255,255,0.85);  
+  }  
+  #crosshair::before { width: 2px; height: 20px; left: 9px; top: 0; }  
+  #crosshair::after  { width: 20px; height: 2px; left: 0; top: 9px; }  
+  #hud {  
+    position: absolute; bottom: 24px; left: 0; right: 0;  
+    display: flex; justify-content: space-between; align-items: flex-end;  
+    padding: 0 32px;  
+  }  
+  .hud-box {  
+    background: rgba(0,0,0,0.55);  
+    border: 1px solid rgba(255,255,255,0.18);  
+    border-radius: 8px; padding: 10px 20px; color: #fff;  
+  }  
+  #health-bar-wrap { width: 200px; }  
+  #health-label { font-size: 11px; color: #aaa; margin-bottom: 4px; letter-spacing: 1px; }  
+  #health-bar-bg { background: rgba(255,255,255,0.1); border-radius: 4px; height: 10px; overflow: hidden; }  
+  #health-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #e63946, #ff6b6b); border-radius: 4px; transition: width 0.3s; }  
+  #ammo-box { text-align: right; }  
+  #ammo-num { font-size: 32px; font-weight: bold; color: #fff; line-height: 1; }  
+  #ammo-label { font-size: 11px; color: #aaa; letter-spacing: 1px; }  
+  #score-box { text-align: center; }  
+  #score-num { font-size: 28px; font-weight: bold; color: #ffd60a; }  
+  #score-label { font-size: 11px; color: #aaa; letter-spacing: 1px; }  
+  #copyright {  
+    position: absolute; bottom: 8px; left: 50%;  
+    transform: translateX(-50%);  
+    font-size: 11px; color: rgba(255,255,255,0.35);  
+    letter-spacing: 1px; white-space: nowrap;  
+  }  
+  #overlay {  
+    position: absolute; inset: 0;  
+    background: rgba(0,0,0,0.82);  
+    display: flex; flex-direction: column; align-items: center; justify-content: center;  
+    gap: 16px; pointer-events: all;  
+  }  
+  #overlay h1 { color: #fff; font-size: 42px; letter-spacing: 4px; text-transform: uppercase; }  
+  #overlay p { color: #aaa; font-size: 15px; }  
+  #overlay button {  
+    margin-top: 10px; padding: 14px 48px;  
+    background: #e63946; color: #fff; border: none;  
+    font-size: 18px; font-family: inherit; border-radius: 8px;  
+    cursor: pointer; letter-spacing: 2px; text-transform: uppercase;  
+    transition: background 0.2s;  
+  }  
+  #overlay button:hover { background: #c1121f; }  
+  #overlay.hidden { display: none; }  
+  #kill-flash {  
+    position: absolute; inset: 0;  
+    background: rgba(255, 0, 0, 0.18);  
+    pointer-events: none; opacity: 0;  
+    transition: opacity 0.15s;  
+  }  
+  #hit-marker {  
+    position: absolute; top: 50%; left: 50%;  
+    transform: translate(-50%, -50%);  
+    opacity: 0; transition: opacity 0.1s;  
+    pointer-events: none;  
+  }  
+  #hit-marker span {  
+    position: absolute; background: #e63946;  
+    border-radius: 2px;  
+  }  
+  .hm-tl { width: 2px; height: 8px; left: -10px; top: -10px; transform: rotate(45deg); }  
+  .hm-tr { width: 2px; height: 8px; left: 8px; top: -10px; transform: rotate(-45deg); }  
+  .hm-bl { width: 2px; height: 8px; left: -10px; top: 2px; transform: rotate(-45deg); }  
+  .hm-br { width: 2px; height: 8px; left: 8px; top: 2px; transform: rotate(45deg); }  
+  #wave-announce {  
+    position: absolute; top: 80px; left: 50%;  
+    transform: translateX(-50%);  
+    font-size: 22px; color: #ffd60a; letter-spacing: 3px;  
+    text-shadow: 0 0 20px #ffd60a88;  
+    opacity: 0; transition: opacity 0.5s;  
+    pointer-events: none;  
+  }  
+  #minimap {  
+    position: absolute; top: 20px; right: 24px;  
+    width: 120px; height: 120px;  
+    background: rgba(0,0,0,0.55);  
+    border: 1px solid rgba(255,255,255,0.18);  
+    border-radius: 8px; overflow: hidden;  
+  }  
+  #minimap canvas { width: 100%; height: 100%; }  
+  #controls-hint {  
+    position: absolute; top: 20px; left: 24px;  
+    color: rgba(255,255,255,0.35);  
+    font-size: 11px; line-height: 1.8; letter-spacing: 0.5px;  
+  }  
+</style>  
+</head>  
+<body>  
+<canvas id="gameCanvas"></canvas>  
+<div id="ui">  
+  <div id="crosshair"></div>  
+  <div id="hit-marker">  
+    <span class="hm-tl"></span><span class="hm-tr"></span>  
+    <span class="hm-bl"></span><span class="hm-br"></span>  
+  </div>  
+  <div id="kill-flash"></div>  
+  <div id="wave-announce"></div>  
+  <div id="minimap"><canvas id="mmCanvas" width="120" height="120"></canvas></div>  
+  <div id="controls-hint">  
+    WASD — تحرك<br>  
+    Mouse — نظر<br>  
+    Click — طلق<br>  
+    R — إعادة تحميل<br>  
+    Shift — ركض  
+  </div>  
+  <div id="hud">  
+    <div class="hud-box" id="health-bar-wrap">  
+      <div id="health-label">HP</div>  
+      <div id="health-bar-bg"><div id="health-bar"></div></div>  
+    </div>  
+    <div class="hud-box" id="score-box">  
+      <div id="score-num">0</div>  
+      <div id="score-label">SCORE</div>  
+    </div>  
+    <div class="hud-box" id="ammo-box">  
+      <div id="ammo-num">30</div>  
+      <div id="ammo-label">AMMO</div>  
+    </div>  
+  </div>  
+  <div id="copyright">© Ibrahim Amer — Shooter 3D</div>  
+  <div id="overlay">  
+    <h1>Shooter 3D</h1>  
+    <p>اضغط على اللعب لتقفل الماوس وتبدأ</p>  
+    <p style="color:#666;font-size:12px;">WASD للتحرك | Mouse للنظر | Click للإطلاق | R للتحميل | Shift للركض</p>  
+    <button id="startBtn">▶ العب</button>  
+    <p id="gameOverMsg" style="color:#e63946;font-size:18px;display:none;"></p>  
+  </div>  
+</div>  <script>  
+const canvas = document.getElementById('gameCanvas');  
+const ctx = canvas.getContext('2d');  
+const mmCanvas = document.getElementById('mmCanvas');  
+const mmCtx = mmCanvas.getContext('2d');  
+  
+let W, H;  
+function resize() {  
+  W = canvas.width = window.innerWidth;  
+  H = canvas.height = window.innerHeight;  
+}  
+resize();  
+window.addEventListener('resize', resize);  
+  
+// ---- GAME STATE ----  
+const MAP_W = 24, MAP_H = 24;  
+const map = [  
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1],  
+  [1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,1,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],  
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],  
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],  
+];  
+  
+const player = {  
+  x: 3.5, y: 3.5, angle: 0,  
+  health: 100, ammo: 30, maxAmmo: 30,  
+  score: 0, speed: 0.055, sprint: false,  
+  reloading: false, reloadTimer: 0,  
+};  
+  
+const ENEMY_COLORS = ['#e63946','#f4a261','#e9c46a','#2a9d8f','#e76f51'];  
+let enemies = [];  
+let bullets = [];  
+let particles = [];  
+let wave = 0;  
+let gameRunning = false;  
+let gameOver = false;  
+let hitMarkerTimer = 0;  
+let killFlashTimer = 0;  
+let waveAnnounceTimer = 0;  
+  
+function spawnWave() {  
+  wave++;  
+  const count = 3 + wave * 2;  
+  enemies = [];  
+  for (let i = 0; i < count; i++) {  
+    let ex, ey;  
+    do {  
+      ex = 1 + Math.random() * (MAP_W - 2);  
+      ey = 1 + Math.random() * (MAP_H - 2);  
+    } while (map[Math.floor(ey)][Math.floor(ex)] !== 0 ||  
+      Math.hypot(ex - player.x, ey - player.y) < 5);  
+    enemies.push({  
+      x: ex, y: ey,  
+      health: 2 + wave,  
+      maxHealth: 2 + wave,  
+      speed: 0.015 + wave * 0.003,  
+      color: ENEMY_COLORS[i % ENEMY_COLORS.length],  
+      angle: 0, attackTimer: 0, visible: false,  
+      size: 0.3,  
+    });  
+  }  
+  showWaveAnnounce('موجة ' + wave);  
+}  
+  
+function showWaveAnnounce(txt) {  
+  const el = document.getElementById('wave-announce');  
+  el.textContent = txt;  
+  el.style.opacity = '1';  
+  waveAnnounceTimer = 180;  
+}  
+  
+// ---- INPUT ----  
+const keys = {};  
+let mouseDX = 0;  
+document.addEventListener('keydown', e => { keys[e.code] = true; });  
+document.addEventListener('keyup', e => { keys[e.code] = false; });  
+document.addEventListener('mousemove', e => {  
+  if (document.pointerLockElement === canvas) {  
+    mouseDX += e.movementX * 0.0018;  
+  }  
+});  
+document.addEventListener('mousedown', e => {  
+  if (document.pointerLockElement === canvas && gameRunning && !gameOver) {  
+    shoot();  
+  }  
+});  
+document.addEventListener('keydown', e => {  
+  if (e.code === 'KeyR' && gameRunning && !player.reloading && player.ammo < player.maxAmmo) {  
+    startReload();  
+  }  
+});  
+  
+canvas.addEventListener('click', () => {  
+  if (!gameRunning || gameOver) return;  
+  canvas.requestPointerLock();  
+});  
+  
+document.getElementById('startBtn').addEventListener('click', () => {  
+  startGame();  
+  canvas.requestPointerLock();  
+});  
+  
+document.addEventListener('pointerlockchange', () => {  
+  if (document.pointerLockElement !== canvas && gameRunning && !gameOver) {  
+    // paused  
+  }  
+});  
+  
+function startGame() {  
+  player.x = 3.5; player.y = 3.5; player.angle = 0;  
+  player.health = 100; player.ammo = 30; player.score = 0;  
+  player.reloading = false; player.reloadTimer = 0;  
+  bullets = []; particles = []; enemies = [];  
+  wave = 0; gameOver = false; gameRunning = true;  
+  document.getElementById('overlay').classList.add('hidden');  
+  document.getElementById('gameOverMsg').style.display = 'none';  
+  spawnWave();  
+}  
+  
+function shoot() {  
+  if (player.ammo <= 0 || player.reloading) {  
+    if (player.ammo <= 0) startReload();  
+    return;  
+  }  
+  player.ammo--;  
+  updateHUD();  
+  // Muzzle flash particles  
+  for (let i = 0; i < 6; i++) {  
+    particles.push({  
+      x: player.x, y: player.y,  
+      vx: (Math.random() - 0.5) * 0.3,  
+      vy: (Math.random() - 0.5) * 0.3,  
+      life: 8, maxLife: 8, color: '#ffd60a',  
+    });  
+  }  
+  // Raycast to hit enemy  
+  const bAngle = player.angle;  
+  let hit = raycastEnemy(player.x, player.y, bAngle);  
+  if (hit) {  
+    hit.enemy.health -= 1;  
+    hitMarkerTimer = 12;  
+    if (hit.enemy.health <= 0) {  
+      killFlashTimer = 6;  
+      player.score += 100 * wave;  
+      // Spawn death particles  
+      for (let i = 0; i < 14; i++) {  
+        particles.push({  
+          x: hit.enemy.x, y: hit.enemy.y,  
+          vx: (Math.random()-0.5)*0.18,  
+          vy: (Math.random()-0.5)*0.18,  
+          life: 30, maxLife: 30, color: hit.enemy.color,  
+        });  
+      }  
+      enemies = enemies.filter(e => e !== hit.enemy);  
+      if (enemies.length === 0) setTimeout(spawnWave, 1200);  
+    }  
+    updateHUD();  
+  }  
+}  
+  
+function startReload() {  
+  player.reloading = true;  
+  player.reloadTimer = 90;  
+}  
+  
+function raycastEnemy(ox, oy, angle) {  
+  const dx = Math.cos(angle), dy = Math.sin(angle);  
+  let best = null, bestDist = 20;  
+  for (const e of enemies) {  
+    // Check if enemy is roughly in direction  
+    const ex = e.x - ox, ey = e.y - oy;  
+    const dot = ex*dx + ey*dy;  
+    if (dot < 0.3) continue;  
+    const cross = Math.abs(ex*dy - ey*dx);  
+    if (cross < e.size + 0.18 && dot < bestDist) {  
+      // Wall check  
+      if (!wallBetween(ox, oy, e.x, e.y)) {  
+        best = e; bestDist = dot;  
+      }  
+    }  
+  }  
+  return best ? { enemy: best, dist: bestDist } : null;  
+}  
+  
+function wallBetween(ax, ay, bx, by) {  
+  const steps = Math.ceil(Math.hypot(bx-ax, by-ay) / 0.1);  
+  for (let i = 1; i < steps; i++) {  
+    const t = i / steps;  
+    const mx = ax + (bx-ax)*t, my = ay + (by-ay)*t;  
+    if (map[Math.floor(my)][Math.floor(mx)] !== 0) return true;  
+  }  
+  return false;  
+}  
+  
+// ---- RAYCASTER ----  
+function castRay(angle) {  
+  const dx = Math.cos(angle), dy = Math.sin(angle);  
+  let mapX = Math.floor(player.x), mapY = Math.floor(player.y);  
+  const stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1;  
+  const deltaX = Math.abs(1/dx), deltaY = Math.abs(1/dy);  
+  let sideDistX = dx > 0 ? (mapX+1-player.x)*deltaX : (player.x-mapX)*deltaX;  
+  let sideDistY = dy > 0 ? (mapY+1-player.y)*deltaY : (player.y-mapY)*deltaY;  
+  let side = 0;  
+  for (let i = 0; i < 64; i++) {  
+    if (sideDistX < sideDistY) { sideDistX += deltaX; mapX += stepX; side = 0; }  
+    else { sideDistY += deltaY; mapY += stepY; side = 1; }  
+    if (mapX < 0||mapX>=MAP_W||mapY<0||mapY>=MAP_H||map[mapY][mapX] !== 0) break;  
+  }  
+  let dist = side === 0 ? (mapX - player.x + (1-stepX)/2) / dx : (mapY - player.y + (1-stepY)/2) / dy;  
+  return { dist: Math.max(dist, 0.01), side };  
+}  
+  
+// ---- RENDER ----  
+function render() {  
+  // Sky & floor  
+  const skyGrad = ctx.createLinearGradient(0,0,0,H/2);  
+  skyGrad.addColorStop(0,'#0d1b2a'); skyGrad.addColorStop(1,'#1b2838');  
+  ctx.fillStyle = skyGrad; ctx.fillRect(0,0,W,H/2);  
+  const floorGrad = ctx.createLinearGradient(0,H/2,0,H);  
+  floorGrad.addColorStop(0,'#1a1a1a'); floorGrad.addColorStop(1,'#0a0a0a');  
+  ctx.fillStyle = floorGrad; ctx.fillRect(0,H/2,W,H/2);  
+  
+  const numRays = W;  
+  const FOV = Math.PI/3;  
+  const zBuffer = new Float32Array(numRays);  
+  
+  for (let x = 0; x < numRays; x++) {  
+    const rayAngle = player.angle - FOV/2 + (x/numRays)*FOV;  
+    const { dist, side } = castRay(rayAngle);  
+    const corrDist = dist * Math.cos(rayAngle - player.angle);  
+    const wallH = Math.min(H, H / corrDist);  
+    zBuffer[x] = corrDist;  
+    const top = (H - wallH) / 2;  
+    let bright = Math.max(0, 1 - corrDist/16);  
+    if (side === 1) bright *= 0.65;  
+    const r = Math.floor(80 * bright), g = Math.floor(110 * bright), b = Math.floor(160 * bright);  
+    ctx.fillStyle = `rgb(${r},${g},${b})`;  
+    ctx.fillRect(x, top, 1, wallH);  
+  }  
+  
+  // Draw enemies (sprites)  
+  const sorted = [...enemies].sort((a,b) =>  
+    Math.hypot(b.x-player.x,b.y-player.y) - Math.hypot(a.x-player.x,a.y-player.y));  
+  
+  for (const e of sorted) {  
+    const dx = e.x - player.x, dy = e.y - player.y;  
+    const dist = Math.hypot(dx, dy);  
+    const spriteAngle = Math.atan2(dy, dx) - player.angle;  
+    let sa = spriteAngle;  
+    while (sa > Math.PI) sa -= Math.PI*2;  
+    while (sa < -Math.PI) sa += Math.PI*2;  
+    if (Math.abs(sa) > FOV*0.75) continue;  
+    const screenX = (0.5 + sa/FOV) * W;  
+    const spriteH = Math.min(H*1.2, H / dist);  
+    const spriteW = spriteH * 0.6;  
+    const drawY = (H - spriteH) / 2;  
+    const startX = Math.floor(screenX - spriteW/2);  
+    const endX = Math.floor(screenX + spriteW/2);  
+    // Check z-buffer per column  
+    for (let sx = Math.max(0, startX); sx < Math.min(W, endX); sx++) {  
+      if (dist >= zBuffer[sx]) continue;  
+      const tx = (sx - startX) / spriteW;  
+      // Body  
+      const bodyTop = drawY + spriteH*0.1;  
+      const bodyH = spriteH*0.6;  
+      const alpha = Math.max(0.3, 1 - dist/14);  
+      ctx.globalAlpha = alpha;  
+      // Legs  
+      ctx.fillStyle = '#2b2d42';  
+      ctx.fillRect(sx, bodyTop + bodyH, 1, spriteH*0.3);  
+      // Body  
+      ctx.fillStyle = e.color;  
+      ctx.fillRect(sx, bodyTop, 1, bodyH);  
+      // Head  
+      const headR = spriteH*0.14;  
+      if (sx === Math.floor(screenX)) {  
+        ctx.beginPath();  
+        ctx.arc(sx, drawY + spriteH*0.07, headR, 0, Math.PI*2);  
+        ctx.fill();  
+      }  
+      // Health bar  
+      if (sx >= startX && sx < startX+spriteW) {  
+        const hpFrac = e.health/e.maxHealth;  
+        const barW = spriteW;  
+        const bx = startX;  
+        if (sx === startX) {  
+          ctx.globalAlpha = 0.7;  
+          ctx.fillStyle = '#333'; ctx.fillRect(bx, drawY-10, barW, 5);  
+          ctx.fillStyle = hpFrac > 0.5 ? '#2dc653' : '#e63946';  
+          ctx.fillRect(bx, drawY-10, barW*hpFrac, 5);  
+        }  
+      }  
+      ctx.globalAlpha = 1;  
+    }  
+  }  
+  
+  // Draw particles (world-space, simplified as dots)  
+  for (const p of particles) {  
+    const dx = p.x - player.x, dy = p.y - player.y;  
+    const dist = Math.hypot(dx, dy);  
+    const sa = Math.atan2(dy, dx) - player.angle;  
+    let sa2 = sa;  
+    while (sa2 > Math.PI) sa2 -= Math.PI*2;  
+    while (sa2 < -Math.PI) sa2 += Math.PI*2;  
+    if (Math.abs(sa2) > FOV) continue;  
+    const screenX = (0.5 + sa2/FOV) * W;  
+    const screenY = H/2 + (Math.random()-0.5)*10;  
+    const sz = Math.max(1, 6/dist);  
+    const alpha = p.life/p.maxLife;  
+    ctx.globalAlpha = alpha;  
+    ctx.fillStyle = p.color;  
+    ctx.fillRect(screenX-sz/2, screenY-sz/2, sz, sz);  
+  }  
+  ctx.globalAlpha = 1;  
+  
+  // Weapon (gun model at bottom)  
+  drawGun();  
+  drawMinimap();  
+}  
+  
+function drawGun() {  
+  const cx = W/2, cy = H;  
+  const sw = W*0.22, sh = H*0.32;  
+  const ox = cx + 80, oy = cy - 10;  
+  const bob = Math.sin(Date.now()*0.008) * (player.sprint ? 6 : 2);  
+  
+  if (player.reloading) {  
+    const prog = 1 - player.reloadTimer/90;  
+    ctx.save();  
+    ctx.translate(0, prog * 60);  
+  }  
+  
+  // Gun body  
+  ctx.fillStyle = '#222';  
+  ctx.beginPath();  
+  ctx.roundRect(ox - sw*0.4, oy - sh*0.7 + bob, sw, sh*0.55, 8);  
+  ctx.fill();  
+  // Barrel  
+  ctx.fillStyle = '#1a1a1a';  
+  ctx.fillRect(ox - sw*0.05, oy - sh*1.0 + bob, sw*0.12, sh*0.35);  
+  // Grip  
+  ctx.fillStyle = '#2d2d2d';  
+  ctx.beginPath();  
+  ctx.roundRect(ox - sw*0.08, oy - sh*0.15 + bob, sw*0.2, sh*0.25, 4);  
+  ctx.fill();  
+  // Sight  
+  ctx.fillStyle = '#e63946';  
+  ctx.fillRect(ox - sw*0.015, oy - sh*1.05 + bob, sw*0.04, 6);  
+  
+  if (player.reloading) ctx.restore();  
+  
+  // Muzzle flash  
+  if (hitMarkerTimer > 10) {  
+    ctx.save();  
+    ctx.globalAlpha = 0.9;  
+    ctx.fillStyle = '#ffd60a';  
+    ctx.beginPath();  
+    ctx.arc(ox + sw*0.01, oy - sh*1.0 + bob, 14, 0, Math.PI*2);  
+    ctx.fill();  
+    ctx.globalAlpha = 0.5;  
+    ctx.fillStyle = '#fff';  
+    ctx.beginPath();  
+    ctx.arc(ox + sw*0.01, oy - sh*1.0 + bob, 6, 0, Math.PI*2);  
+    ctx.fill();  
+    ctx.restore();  
+  }  
+  
+  // Reload progress bar  
+  if (player.reloading) {  
+    const prog = 1 - player.reloadTimer/90;  
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';  
+    ctx.fillRect(cx-80, cy-40, 160, 8);  
+    ctx.fillStyle = '#ffd60a';  
+    ctx.fillRect(cx-80, cy-40, 160*prog, 8);  
+    ctx.fillStyle = '#fff';  
+    ctx.font = '12px Courier New';  
+    ctx.textAlign = 'center';  
+    ctx.fillText('RELOADING...', cx, cy-46);  
+  }  
+}  
+  
+function drawMinimap() {  
+  const SCALE = 5;  
+  mmCtx.clearRect(0,0,120,120);  
+  mmCtx.fillStyle = '#111';  
+  mmCtx.fillRect(0,0,120,120);  
+  for (let y = 0; y < MAP_H; y++) {  
+    for (let x = 0; x < MAP_W; x++) {  
+      if (map[y][x]) {  
+        mmCtx.fillStyle = '#334';  
+        mmCtx.fillRect(x*SCALE, y*SCALE, SCALE, SCALE);  
+      }  
+    }  
+  }  
+  // Enemies  
+  for (const e of enemies) {  
+    mmCtx.fillStyle = e.color;  
+    mmCtx.beginPath();  
+    mmCtx.arc(e.x*SCALE, e.y*
